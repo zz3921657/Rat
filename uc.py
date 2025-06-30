@@ -8,7 +8,7 @@ from telegram.ext import (
 CHOOSE_PRICE, GET_UID, ORDER_CONFIRM, GET_SCREENSHOT = range(4)
 
 # --- Admin ID ---
-ADMIN_USER_ID = 6829160614
+ADMIN_USER_ID = 5759284972
 
 # --- UC Options ---
 PRICE_OPTIONS = {
@@ -185,18 +185,6 @@ async def admin_dashboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(msg, parse_mode="Markdown")
 
-# --- Help Command ---
-async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    help_text = (
-        "ℹ️ *Bot Commands Help*\n\n"
-        "/BUY UC – Begin your UC order process\n"
-        "/help – Show this help message\n"
-        "/admin – Admin dashboard (Admin only)\n\n"
-        "🔹 Just follow the steps guided by the bot to purchase UC.\n"
-        "🔹 If you face issues, contact support: @Heyynitin"
-    )
-    await update.message.reply_text(help_text, parse_mode="Markdown")
-
 # --- Main ---
 if __name__ == "__main__":
     app = ApplicationBuilder().token("7552538341:AAGAqvdJarpYs09e_cU0qrFAUFbPv4vpih8").build()
@@ -217,7 +205,6 @@ if __name__ == "__main__":
 
     app.add_handler(conv_handler)
     app.add_handler(CommandHandler("admin", admin_dashboard))
-    app.add_handler(CommandHandler("help", help_command))
 
     print("✅ Bot is running...")
     app.run_polling()
