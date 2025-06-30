@@ -8,7 +8,7 @@ from telegram.ext import (
 CHOOSE_PRICE, GET_UID, ORDER_CONFIRM, GET_SCREENSHOT = range(4)
 
 # --- Admin ID ---
-ADMIN_USER_ID = 6829160614
+ADMIN_USER_ID = 5759284972
 
 # --- UC Options ---
 PRICE_OPTIONS = {
@@ -96,6 +96,12 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = query.data
 
     if data == "confirm_order":
+        print(f"Callback data received: {data}")
+        import os
+        if not os.path.exists(QR_IMAGE_PATH):
+            await query.message.reply_text("⚠️ Payment QR code is missing. Please contact support.")
+            return CHOOSE_PRICE
+
         await query.message.reply_photo(
             photo=open(QR_IMAGE_PATH, 'rb'),
             caption="📲 *Scan this QR to pay.*\n\nAfter payment, please send the screenshot below 👇",
@@ -140,7 +146,7 @@ async def get_screenshot(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # --- Launch ---
 if __name__ == "__main__":
-    app = ApplicationBuilder().token("8005873550:AAE3DMQ_-oQD9RUb6Kb1GO9ui50rnrZsOjE").build()
+    app = ApplicationBuilder().token("7552538341:AAGAqvdJarpYs09e_cU0qrFAUFbPv4vpih8").build()
 
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler("start", start)],
