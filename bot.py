@@ -96,15 +96,9 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = query.data
 
     if data == "confirm_order":
-        print(f"Callback data received: {data}")
-        import os
-        if not os.path.exists(QR_IMAGE_PATH):
-            await query.message.reply_text("78.png")
-            return CHOOSE_PRICE
-
         await query.message.reply_photo(
-            photo=open(QR_IMAGE_PATH, '78.png'),
-            caption="📲 *Scan this QR to pay.*\n\nAfter payment, please send the screenshot below 👇\n\n📞 Contact support: @Heyynitin",
+            photo=open(QR_IMAGE_PATH, 'rb'),
+            caption="📲 *Scan this QR to pay.*\n\nAfter payment, please send the screenshot below 👇",
             parse_mode="Markdown"
         )
         return GET_SCREENSHOT
