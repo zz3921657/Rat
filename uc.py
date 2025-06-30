@@ -1,141 +1,210 @@
-import logging
-from telegram import Update
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import (
-    ApplicationBuilder,
-    CommandHandler,
-    ContextTypes,
+    ApplicationBuilder, CommandHandler, CallbackQueryHandler,
+    MessageHandler, ConversationHandler, filters, ContextTypes
 )
-from collections import defaultdict
 
-# Enable logging
-logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
-)
-logger = logging.getLogger(__name__)
+# --- States ---
+CHOOSE_PRICE, GET_UID, ORDER_CONFIRM, GET_SCREENSHOT = range(4)
 
-# Replace with your actual bot token
-BOT_TOKEN = "7552538341:AAGAqvdJarpYs09e_cU0qrFAUFbPv4vpih8"
+# --- Admin ID ---
+ADMIN_USER_ID = 5759284972
 
-# Replace with your Telegram user ID(s)
-ADMINS = [6829160614]  # Add your Telegram user ID here
+# --- UC Options ---
+PRICE_OPTIONS = {
+    "300 UC – ₹200": ("325 UC", 200),
+    "600 UC – ₹400": ("660 UC", 400),
+    "3000 UC – ₹1250": ("1800 UC", 1250),
+    "6000 UC – ₹2800": ("6000 UC", 2800),
+    "12000 UC – ₹5200": ("12000 UC", 5200)
+}
 
-# In-memory user data
-user_points = defaultdict(int)
-user_referrals = defaultdict(set)
+# --- QR Image ---
+QR_IMAGE_PATH = "1000020718.png"
 
+# --- Order Log ---
+ORDER_LOG = []
 
+# --- /start ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    referred_by = None
-
-    if context.args:
-        referred_by = context.args[0]
-        if referred_by != str(user_id):
-            user_referrals[referred_by].add(user_id)
-            user_points[referred_by] += 100  # Referral bonus
+    user = update.effective_user
+    name = user.first_name or "Player"
 
     welcome_text = (
-        "👑 Welcome to *UC King Bot*! 👑\n\n"
-        "🎮 Earn and redeem PUBG Unknown Cash (UC) through giveaways and rewards!\n\n"
-        "💰 Use /prize to see current UC prizes.\n"
-        "👥 Use /refer to invite friends and earn points.\n"
-        "📊 Use /points to check your balance.\n"
+        f"👋 Hey *『𝙽𝙾1』{name}★!*,\n"
+        f"🎉 Welcome to the *CARDING UC Bot!* 💥\n\n"
+        f"✨ We're thrilled to have you here. Let's get you started.\n\n"
+        f"💰 Please select your desired UC package below 👇"
     )
 
-    await update.message.reply_text(welcome_text, parse_mode="Markdown")
+    keyboard = [[InlineKeyboardButton(text, callback_data=text)] for text in PRICE_OPTIONS]
+    await update.message.reply_text(welcome_text, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
+    return CHOOSE_PRICE
 
+# --- UC Pack Selected ---
+async def choose_price(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
 
-async def prize(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = (
-        "🏆 *UC Prize List:*\n\n"
-        "🥉 60 UC  - 500 points\n"
-        "🥈 300 UC - 2000 points\n"
-        "🥇 600 UC - 3500 points\n"
-        "👑 1800 UC - 7000 points\n\n"
-        "💡 Earn points by referring friends or joining events!\n"
-    )
-    await update.message.reply_text(text, parse_mode="Markdown")
+    selected = query.data
+    context.user_data["selected_price"] = selected
+    context.user_data["package"], context.user_data["amount"] = PRICE_OPTIONS[selected]
 
-
-async def refer(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    bot_username = (await context.bot.get_me()).username
-    referral_link = f"https://t.me/{bot_username}?start={user_id}"
-    await update.message.reply_text(
-        f"👥 *Refer & Earn*\n\n"
-        f"Share this link with your friends:\n"
-        f"{referral_link}\n\n"
-        f"🎁 You’ll earn *100 points* for each signup!",
-        parse_mode="Markdown",
+    msg = (
+        f"You selected *{selected}*.\n\n"
+        f"Now, please send your *Game UID*."
     )
 
+    buttons = [
+        [
+            InlineKeyboardButton("🔁 Back to Menu", callback_data="back_to_menu"),
+            InlineKeyboardButton("❌ Cancel", callback_data="cancel_order")
+        ]
+    ]
 
-async def points(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    points = user_points[user_id]
-    referrals = len(user_referrals[user_id])
-    await update.message.reply_text(
-        f"📊 *Your Stats:*\n\n"
-        f"⭐ Points: *{points}*\n"
-        f"👥 Referrals: *{referrals}*",
-        parse_mode="Markdown",
+    await query.message.reply_text(msg, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(buttons))
+    return GET_UID
+
+# --- Handle UID ---
+async def get_uid(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    uid = update.message.text.strip()
+
+    if not uid.isdigit():
+        await update.message.reply_text("⚠️ Invalid UID. Please enter **numbers only**.")
+        return GET_UID
+
+    context.user_data["uid"] = uid
+
+    summary = (
+        f"📦 *Order Summary:*\n\n"
+        f"🪙 UC Package: {context.user_data['package']}\n"
+        f"💰 Amount: ₹{context.user_data['amount']}\n"
+        f"🎮 Your Game ID: `{uid}`\n\n"
+        f"Please confirm these details before proceeding."
     )
 
+    buttons = [
+        [InlineKeyboardButton("✅ Confirm & Proceed to Payment", callback_data="confirm_order")],
+        [InlineKeyboardButton("❌ Cancel Order", callback_data="cancel_order")]
+    ]
 
-async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "📘 *Bot Commands:*\n\n"
-        "/start - Begin or refer\n"
-        "/prize - View prize list\n"
-        "/refer - Get your referral link\n"
-        "/points - Check your points\n"
-        "/help - Show this help message",
-        parse_mode="Markdown",
-    )
+    await update.message.reply_text(summary, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(buttons))
+    return ORDER_CONFIRM
 
+# --- Handle Callback Queries ---
+async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    data = query.data
 
-async def admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    if user_id not in ADMINS:
-        await update.message.reply_text("🚫 You are not authorized to access this dashboard.")
+    if data == "confirm_order":
+        import os
+        if not os.path.exists(QR_IMAGE_PATH):
+            await query.message.reply_text("⚠️ QR image not found.")
+            return CHOOSE_PRICE
+
+        await query.message.reply_photo(
+            photo=open(QR_IMAGE_PATH, 'rb'),
+            caption="📲 *Scan this QR to pay.*\n\nAfter payment, please send the screenshot below 👇\n\n📞 Contact support: @Heyynitin",
+            parse_mode="Markdown"
+        )
+        return GET_SCREENSHOT
+
+    elif data == "cancel_order":
+        await query.message.reply_text("❌ Your order was cancelled.\n\n💰 You can start a new order below 👇")
+
+        keyboard = [[InlineKeyboardButton(text, callback_data=text)] for text in PRICE_OPTIONS]
+        await query.message.reply_text("Please select a UC package:", reply_markup=InlineKeyboardMarkup(keyboard))
+        return CHOOSE_PRICE
+
+    elif data == "back_to_menu":
+        keyboard = [[InlineKeyboardButton(text, callback_data=text)] for text in PRICE_OPTIONS]
+        await query.message.reply_text("💰 Please select a UC package again:", reply_markup=InlineKeyboardMarkup(keyboard))
+        return CHOOSE_PRICE
+
+# --- Screenshot Upload ---
+async def get_screenshot(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.message.photo:
+        photo = update.message.photo[-1].file_id
+        caption = (
+            f"🧾 *New UC Order!*\n"
+            f"👤 @{update.effective_user.username or 'unknown'}\n"
+            f"🎮 UID: `{context.user_data.get('uid')}`\n"
+            f"📦 Package: {context.user_data.get('package')}\n"
+            f"💰 Amount: ₹{context.user_data.get('amount')}"
+        )
+
+        # Send to Admin
+        await context.bot.send_photo(chat_id=ADMIN_USER_ID, photo=photo, caption=caption, parse_mode="Markdown")
+
+        # Save order
+        ORDER_LOG.append({
+            "username": update.effective_user.username or "unknown",
+            "uid": context.user_data.get("uid"),
+            "package": context.user_data.get("package"),
+            "amount": context.user_data.get("amount")
+        })
+
+        # Thank user
+        await update.message.reply_text("🎉 Thank you for your purchase!\nWe'll confirm and deliver shortly.\n\n💰 Want to buy more UC? Choose a package below 👇")
+
+        keyboard = [[InlineKeyboardButton(text, callback_data=text)] for text in PRICE_OPTIONS]
+        await update.message.reply_text("Choose another UC pack:", reply_markup=InlineKeyboardMarkup(keyboard))
+        return CHOOSE_PRICE
+    else:
+        await update.message.reply_text("⚠️ Please send the screenshot as an image.")
+        return GET_SCREENSHOT
+
+# --- Admin Dashboard ---
+async def admin_dashboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != ADMIN_USER_ID:
+        await update.message.reply_text("🚫 You are not authorized to access the admin dashboard.")
         return
 
-    total_users = len(set(user_points.keys()) | set(user_referrals.keys()))
-    total_points = sum(user_points.values())
-    total_referrals = sum(len(refs) for refs in user_referrals.values())
+    if not ORDER_LOG:
+        await update.message.reply_text("📭 No orders yet.")
+        return
 
-    # Top 5 referrers
-    leaderboard = sorted(user_referrals.items(), key=lambda x: len(x[1]), reverse=True)[:5]
-    leaderboard_text = "\n".join(
-        [f"👤 `{uid}` - {len(refs)} referrals" for uid, refs in leaderboard]
-    ) or "No referrals yet."
+    total_orders = len(ORDER_LOG)
+    total_revenue = sum(order["amount"] for order in ORDER_LOG)
 
-    admin_text = (
-        f"🛠 *Admin Dashboard*\n\n"
-        f"👥 Total Users: *{total_users}*\n"
-        f"🏅 Total Points Given: *{total_points}*\n"
-        f"🔗 Total Referrals: *{total_referrals}*\n\n"
-        f"📈 *Top Referrers:*\n{leaderboard_text}"
+    msg = (
+        f"🛠️ *Admin Dashboard*\n\n"
+        f"📦 Total Orders: {total_orders}\n"
+        f"💰 Total Revenue: ₹{total_revenue}\n\n"
+        f"🧾 *Recent Orders:*\n"
     )
 
-    await update.message.reply_text(admin_text, parse_mode="Markdown")
+    recent_orders = ORDER_LOG[-5:]
+    for i, order in enumerate(recent_orders[::-1], 1):
+        msg += (
+            f"\n{i}. 👤 @{order['username']}\n"
+            f"   🎮 UID: `{order['uid']}`\n"
+            f"   📦 {order['package']} – ₹{order['amount']}\n"
+        )
 
+    await update.message.reply_text(msg, parse_mode="Markdown")
 
-async def main():
-    app = ApplicationBuilder().token(BOT_TOKEN).build()
-
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("prize", prize))
-    app.add_handler(CommandHandler("refer", refer))
-    app.add_handler(CommandHandler("points", points))
-    app.add_handler(CommandHandler("help", help_command))
-    app.add_handler(CommandHandler("admin", admin))
-
-    print("🤖 Bot is running...")
-    await app.run_polling()
-
-
+# --- Main ---
 if __name__ == "__main__":
-    import asyncio
+    app = ApplicationBuilder().token("7552538341:AAGAqvdJarpYs09e_cU0qrFAUFbPv4vpih8").build()
 
-    asyncio.run(main())
+    conv_handler = ConversationHandler(
+        entry_points=[CommandHandler("start", start)],
+        states={
+            CHOOSE_PRICE: [CallbackQueryHandler(choose_price)],
+            GET_UID: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, get_uid),
+                CallbackQueryHandler(handle_callback)
+            ],
+            ORDER_CONFIRM: [CallbackQueryHandler(handle_callback)],
+            GET_SCREENSHOT: [MessageHandler(filters.PHOTO, get_screenshot)],
+        },
+        fallbacks=[]
+    )
+
+    app.add_handler(conv_handler)
+    app.add_handler(CommandHandler("admin", admin_dashboard))
+
+    print("✅ Bot is running...")
+    app.run_polling()
