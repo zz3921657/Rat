@@ -94,18 +94,13 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     data = query.data
 
-    if data == "confirm_order":
-        try:
-            with open(QR_IMAGE_PATH, 'rb') as photo:
-                await query.message.reply_photo(
-                    photo=photo,
-                    caption="📲 *Scan this QR to pay.*\n\nAfter payment, please send the screenshot below 👇",
-                    parse_mode="Markdown"
-                )
-        except FileNotFoundError:
-            await query.message.reply_text("{rendom qr open}"l)
-            return CHOOSE_PRICE
-        return GET_SCREENSHOT
+if data == "confirm_order":
+    await query.message.reply_photo(
+        photo=open(QR_IMAGE_PATH, 'rb'),  # Make sure QR_IMAGE_PATH = "78.png"
+        caption="📲 *Scan this QR to pay.*\n\nAfter payment, please send the screenshot below 👇",
+        parse_mode="Markdown"
+    )
+    return GET_SCREENSHOT
 
     elif data == "cancel_order":
         await query.message.reply_text("❌ Your order was cancelled.\n\n💰 You can start a new order below 👇")
