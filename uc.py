@@ -343,6 +343,71 @@ async def choose_price(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ]
     ]
 
+import os
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update, InputFile
+from telegram.ext import (
+    ApplicationBuilder, CommandHandler, CallbackQueryHandler,
+    MessageHandler, ConversationHandler, filters, ContextTypes
+)
+
+# --- States ---
+CHOOSE_PRICE, GET_UID, ORDER_CONFIRM, GET_SCREENSHOT = range(4)
+
+# --- Admin ID ---
+ADMIN_USER_ID = 6829160614  # Replace with your actual Telegram user ID
+
+# --- UC Options ---
+PRICE_OPTIONS = {
+    "300 UC – ₹200": ("325 UC", 200),
+    "600 UC – ₹400": ("660 UC", 400),
+    "3000 UC – ₹1250": ("1800 UC", 1250),
+    "6000 UC – ₹2800": ("6000 UC", 2800),
+    "12000 UC – ₹5200": ("12000 UC", 5200)
+}
+
+# --- QR Image ---
+QR_IMAGE_PATH = "1000020718.png"  # Make sure this image exists in your directory
+
+# --- Order Log ---
+ORDER_LOG = []
+
+# --- /start or /buy_uc ---
+async def buy_uc(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    name = user.first_name or "Player"
+
+    welcome_text = (
+        f"👋 Hey *『𝙽𝙾1』{name}★!*,\n"
+        f"🎉 Welcome to the *CARDING UC Bot!* 💥\n\n"
+        f"✨ We're thrilled to have you here. Let's get you started.\n\n"
+        f"💰 Please select your desired UC package below 👇"
+    )
+
+    keyboard = [[InlineKeyboardButton(text, callback_data=text)] for text in PRICE_OPTIONS]
+    await update.message.reply_text(welcome_text, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
+    return CHOOSE_PRICE
+
+# --- User selects a price ---
+async def choose_price(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+
+    selected = query.data
+    context.user_data["selected_price"] = selected
+    context.user_data["package"], context.user_data["amount"] = PRICE_OPTIONS[selected]
+
+    msg = (
+        f"You selected *{selected}*.\n\n"
+        f"Now, please send your *Game UID*."
+    )
+
+    buttons = [
+        [
+            InlineKeyboardButton("🔁 Back to Menu", callback_data="back_to_menu"),
+            InlineKeyboardButton("❌ Cancel", callback_data="cancel_order")
+        ]
+    ]
+
     await query.message.reply_text(msg, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(buttons))
     return GET_UID
 
@@ -372,14 +437,13 @@ async def get_uid(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(summary, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(buttons))
     return ORDER_CONFIRM
 
-# --- Callback query handler ---
+# --- Handle callback queries ---
 async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     data = query.data
 
     if data == "confirm_order":
-        import os
         if not os.path.exists(QR_IMAGE_PATH):
             await query.message.reply_text("⚠️ QR image not found.")
             return CHOOSE_PRICE
@@ -464,13 +528,12 @@ async def get_screenshot(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("⚠️ Please send a valid *screenshot photo*.", parse_mode="Markdown")
         return GET_SCREENSHOT
 
-# --- Main ---
+# --- Main Function ---
 def main():
-    import os
-    from dotenv import load_dotenv
-
-    load_dotenv()
-    TOKEN = os.getenv("7552538341:AAGAqvdJarpYs09e_cU0qrFAUFbPv4vpih8")  # Make sure to define BOT_TOKEN in .env
+    TOKEN = os.getenv("7552538341:AAGAqvdJarpYs09e_cU0qrFAUFbPv4vpih8")  # Make sure to set BOT_TOKEN in your environment or .env file
+    if not TOKEN:
+        print("❌ BOT_TOKEN is not set.")
+        return
 
     app = ApplicationBuilder().token(TOKEN).build()
 
@@ -482,4 +545,14 @@ def main():
             ORDER_CONFIRM: [CallbackQueryHandler(handle_callback)],
             GET_SCREENSHOT: [MessageHandler(filters.PHOTO, get_screenshot)],
         },
-        fallbacks=[CallbackQueryHand]()
+        fallbacks=[CallbackQueryHandler(handle_callback)],
+    )
+
+    app.add_handler(conv_handler)
+    app.add_handler(CallbackQueryHandler(handle_callback))
+
+    print("✅ Bot is running...")
+    app.run_polling()
+
+if __name__ == "__main__":
+    main()
