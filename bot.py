@@ -20,7 +20,7 @@ PRICE_OPTIONS = {
 }
 
 # --- QR Image ---
-QR_IMAGE_PATH = "78.png"
+QR_IMAGE_PATH = "1000020718.png"
 
 # --- /start ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -104,7 +104,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         await query.message.reply_photo(
             photo=open(QR_IMAGE_PATH, 'rb'),
-            caption="📲 *Scan this QR to pay.*\n\nAfter payment, please send the screenshot below 👇",
+            caption="📲 *Scan this QR to pay.*\n\nAfter payment, please send the screenshot below 👇\n\n📞 Contact support: @your_support_username",
             parse_mode="Markdown"
         )
         return GET_SCREENSHOT
